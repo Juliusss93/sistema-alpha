@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistema ALPHA | Centro de Control y Monitoreo Hídrico Río Rímac</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Leaflet CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    @keyframes pulse-red {
+      0%, 100% { transform: scale(1); opacity: 1; box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+      50% { transform: scale(1.15); opacity: 0.9; box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+    }
+    .pulse-alert {
+      animation: pulse-red 1.8s infinite;
+    }
+    /* Custom scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #475569; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col">
+
+  <!-- TOP NAVIGATION BAR -->
+  <header class="bg-slate-900/90 backdrop-blur border-b border-slate-800 sticky top-0 z-50 px-4 py-3">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+      
+      <!-- Brand & Project Info -->
+      <div class="flex items-center space-x-3">
+        <div class="bg-sky-500/10 p-2 rounded-lg border border-sky-500/30 text-sky-400">
+          <i data-lucide="radio" class="w-6 h-6 animate-pulse"></i>
+        </div>
+        <div>
+          <div class="flex items-center space-x-2">
+            <span class="text-xs font-bold uppercase tracking-wider text-sky-400">Drones Geoexplomin S.A.C.</span>
+            <span class="bg-slate-800 text-slate-300 text-[10px] px-2 py-0.5 rounded-full font-mono">v2.4 Live</span>
+          </div>
+          <h1 class="text-lg font-bold tracking-tight text-white flex items-center gap-2">
+            Proyecto ALPHA <span class="text-slate-400 font-normal text-sm">| Vigilancia y Alerta Temprana Río Rímac</span>
+          </h1>
+        </div>
+      </div>
+
+      <!-- Telemetry Live Status -->
+      <div class="flex items-center space-x-4 text-xs font-mono">
+        <div class="bg-slate-950 px-3 py-1.5 rounded-md border border-slate-800 flex items-center gap-2">
+          <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
+          <span class="text-slate-300">Red LoRaMesh:</span>
+          <span class="text-emerald-400 font-bold">10/10 Online</span>
+        </div>
+        <div class="hidden sm:flex bg-slate-950 px-3 py-1.5 rounded-md border border-slate-800 items-center gap-2">
+          <i data-lucide="cpu" class="w-4 h-4 text-sky-400"></i>
+          <span class="text-slate-300">Motor ML:</span>
+          <span class="text-sky-400 font-bold">Random Forest Activo</span>
+        </div>
+        <a href="https://www.dronesgeosac.com" target="_blank" class="bg-sky-600 hover:bg-sky-500 text-white font-sans px-3 py-1.5 rounded-md text-xs font-semibold transition flex items-center gap-1.5">
+          <i data-lucide="globe" class="w-3.5 h-3.5"></i> Web DronesGeo
+        </a>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- MAIN DASHBOARD CONTENT -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-4">
+    
+    <!-- LEFT PANEL: MAP & BASIN GEO-VIEW (8 cols) -->
+    <div class="lg:col-span-8 flex flex-col space-y-4">
+      
+      <!-- Live Map Container -->
+      <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-2xl flex flex-col h-[520px]">
+        
+        <!-- Map Header & Filter Controls -->
+        <div class="px-4 py-2.5 bg-slate-900 border-b border-slate-800 flex flex-wrap items-center justify-between text-xs gap-2">
+          <div class="flex items-center space-x-2 font-medium">
+            <i data-lucide="map-pin" class="w-4 h-4 text-sky-400"></i>
+            <span>Red Hidrométrica & Estaciones de Monitoreo ANA (160 km)</span>
+          </div>
+          
+          <!-- Filter Buttons -->
+          <div class="flex items-center space-x-1.5 bg-slate-950 p-1 rounded-lg border border-slate-800 text-[11px]">
+            <button onclick="filterStations('all')" class="px-2.5 py-1 rounded bg-slate-800 text-white font-medium hover:bg-slate-700 transition" id="btn-all">Todas (10)</button>
+            <button onclick="filterStations('critico')" class="px-2.5 py-1 rounded text-red-400 hover:bg-slate-900 transition flex items-center gap-1" id="btn-critico">
+              <span class="w-2 h-2 rounded-full bg-red-500"></span> Críticos (3)
+            </button>
+            <button onclick="filterStations('media')" class="px-2.5 py-1 rounded text-amber-400 hover:bg-slate-900 transition flex items-center gap-1" id="btn-media">
+              <span class="w-2 h-2 rounded-full bg-amber-500"></span> Alerta Media (6)
+            </button>
+            <button onclick="filterStations('normal')" class="px-2.5 py-1 rounded text-emerald-400 hover:bg-slate-900 transition flex items-center gap-1" id="btn-normal">
+              <span class="w-2 h-2 rounded-full bg-emerald-500"></span> Normal (1)
+            </button>
+          </div>
+        </div>
+
+        <!-- Leaflet Map -->
+        <div id="map" class="flex-1 w-full z-0"></div>
+
+        <!-- Map Footer Legend -->
+        <div class="bg-slate-950/80 px-4 py-2 border-t border-slate-800 flex flex-wrap items-center justify-between text-[11px] text-slate-400">
+          <div class="flex items-center space-x-4">
+            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"></span> Alerta Alta / Crítico (ECA Excedido)</span>
+            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Alerta Media (As / Parámetro en frontera)</span>
+            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> Estado Normal</span>
+          </div>
+          <span class="font-mono text-[10px] text-slate-500">Última sync ANA: 2025-II</span>
+        </div>
+      </div>
+
+      <!-- Real-Time Timeline Chart -->
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl">
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center space-x-2">
+            <i data-lucide="activity" class="w-4 h-4 text-sky-400"></i>
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-200">
+              Telemetría Continua en Tiempo Real: Oxígeno Disuelto & Conductividad
+            </h3>
+          </div>
+          <span class="text-[11px] font-mono text-emerald-400 flex items-center gap-1">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> Transmitiendo cada 4s
+          </span>
+        </div>
+        <div class="h-44 w-full">
+          <canvas id="realtimeChart"></canvas>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT PANEL: ACTIVE STATION DETAILS & DRONE ACTION (4 cols) -->
+    <div class="lg:col-span-4 flex flex-col space-y-4">
+      
+      <!-- Selected Station Card -->
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl flex flex-col">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+          <div>
+            <span class="text-[10px] font-mono uppercase tracking-wider text-slate-400" id="card-tramo">Afluente Crítico Cuenca Baja</span>
+            <h2 class="text-base font-bold text-white flex items-center gap-2" id="card-nombre">
+              QHuay2 · Quebrada Huaycoloro
+            </h2>
+          </div>
+          <span class="px-2.5 py-1 rounded-full text-xs font-bold bg-red-500/20 text-red-400 border border-red-500/30 flex items-center gap-1" id="card-badge">
+            <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span> ALERTA ALTA
+          </span>
+        </div>
+
+        <!-- Sensor Metrics Grid -->
+        <div class="grid grid-cols-2 gap-2.5 my-3">
+          <!-- pH -->
+          <div class="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800/80">
+            <div class="text-[10px] text-slate-400 font-medium">Potencial Hidrógeno</div>
+            <div class="text-xl font-bold font-mono text-amber-400 mt-0.5" id="val-ph">10.36</div>
+            <div class="text-[10px] text-red-400 font-medium mt-0.5">ECA: 6.5 - 8.5 (Alcalino)</div>
+          </div>
+          <!-- Oxígeno Disuelto -->
+          <div class="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800/80">
+            <div class="text-[10px] text-slate-400 font-medium">Oxígeno Disuelto</div>
+            <div class="text-xl font-bold font-mono text-sky-400 mt-0.5" id="val-od">19.41 <span class="text-xs font-normal">mg/L</span></div>
+            <div class="text-[10px] text-slate-400 mt-0.5">ECA: &ge; 4.0 mg/L</div>
+          </div>
+          <!-- Conductividad -->
+          <div class="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800/80">
+            <div class="text-[10px] text-slate-400 font-medium">Conductividad Eléctrica</div>
+            <div class="text-xl font-bold font-mono text-slate-200 mt-0.5" id="val-cond">2064 <span class="text-xs font-normal">µS/cm</span></div>
+            <div class="text-[10px] text-amber-400 mt-0.5">ECA: &le; 2500 µS/cm</div>
+          </div>
+          <!-- Temperatura -->
+          <div class="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800/80">
+            <div class="text-[10px] text-slate-400 font-medium">Temperatura Agua</div>
+            <div class="text-xl font-bold font-mono text-amber-400 mt-0.5" id="val-temp">32.30 <span class="text-xs font-normal">°C</span></div>
+            <div class="text-[10px] text-red-400 mt-0.5">Efluente térmico detectado</div>
+          </div>
+          <!-- DQO / DBO -->
+          <div class="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800/80">
+            <div class="text-[10px] text-slate-400 font-medium">Demanda Quím. (DQO)</div>
+            <div class="text-lg font-bold font-mono text-red-400 mt-0.5" id="val-dqo">73.10 <span class="text-xs font-normal">mg/L</span></div>
+            <div class="text-[10px] text-red-400 mt-0.5">ECA: &le; 40 mg/L (Excede)</div>
+          </div>
+          <!-- Metales (Arsénico / Hierro) -->
+          <div class="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800/80">
+            <div class="text-[10px] text-slate-400 font-medium">Arsénico / Metales</div>
+            <div class="text-lg font-bold font-mono text-slate-200 mt-0.5" id="val-metal">0.0063 <span class="text-xs font-normal">mg/L</span></div>
+            <div class="text-[10px] text-emerald-400 mt-0.5">ECA: &le; 0.10 mg/L</div>
+          </div>
+        </div>
+
+        <!-- Protocol Trigger Buttons (Capas 2 y 3) -->
+        <div class="space-y-2 pt-2 border-t border-slate-800">
+          <button onclick="triggerDroneProtocol()" class="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-2.5 px-3 rounded-lg text-xs flex items-center justify-center gap-2 shadow-lg shadow-red-600/20 transition cursor-pointer">
+            <i data-lucide="plane-takeoff" class="w-4 h-4"></i>
+            ACTIVAR PROTOCOLO DRON (CAPA 2)
+          </button>
+          <button onclick="triggerInacalProtocol()" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium py-2 px-3 rounded-lg text-xs flex items-center justify-center gap-2 border border-slate-700 transition cursor-pointer">
+            <i data-lucide="flask-conical" class="w-3.5 h-3.5 text-sky-400"></i>
+            Solicitar Cadena Custodia INACAL (Capa 3)
+          </button>
+        </div>
+
+      </div>
+
+      <!-- Machine Learning Engine Status Card -->
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl">
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center space-x-2">
+            <i data-lucide="brain-circuit" class="w-4 h-4 text-sky-400"></i>
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-200">Motor de Inferencia ML</h3>
+          </div>
+          <span class="text-[10px] bg-sky-500/10 text-sky-400 px-2 py-0.5 rounded border border-sky-500/20">Random Forest</span>
+        </div>
+
+        <div class="space-y-2 text-xs">
+          <div class="flex justify-between text-slate-300">
+            <span>Algoritmo:</span>
+            <span class="font-mono text-white">Random Forest (50 trees)</span>
+          </div>
+          <div class="flex justify-between text-slate-300">
+            <span>Precisión (Accuracy):</span>
+            <span class="font-mono text-emerald-400 font-bold">100.0% (Validación ANA)</span>
+          </div>
+          <div class="flex justify-between text-slate-300">
+            <span>Sensor más determinante:</span>
+            <span class="font-mono text-sky-400 font-bold">Hierro (Fe) · 0.196 Gini</span>
+          </div>
+          <div class="flex justify-between text-slate-300">
+            <span>Sensor térmico determinante:</span>
+            <span class="font-mono text-amber-400 font-bold">Temperatura · 0.169 Gini</span>
+          </div>
+          <div class="pt-2 border-t border-slate-800">
+            <div class="flex justify-between text-slate-400 text-[11px] mb-1">
+              <span>Confianza de Inferencia Actual:</span>
+              <span class="font-mono text-emerald-400 font-bold" id="infer-confidence">99.4%</span>
+            </div>
+            <div class="w-full bg-slate-950 h-2 rounded-full overflow-hidden border border-slate-800">
+              <div class="bg-emerald-500 h-full rounded-full transition-all duration-500" style="width: 99.4%;" id="confidence-bar"></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- MODAL: DRONE FLIGHT SIMULATION -->
+  <div id="droneModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative">
+      <button onclick="closeDroneModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+
+      <div class="flex items-center space-x-3 mb-4">
+        <div class="bg-red-500/20 text-red-400 p-3 rounded-xl border border-red-500/30">
+          <i data-lucide="plane" class="w-6 h-6 animate-pulse"></i>
+        </div>
+        <div>
+          <span class="text-xs uppercase font-mono tracking-wider text-red-400 font-bold">Capa 2 · Prediagnóstico Aéreo Activado</span>
+          <h3 class="text-base font-bold text-white">Misión de Vuelo Autónomo: Inspección Térmica</h3>
+        </div>
+      </div>
+
+      <div class="space-y-3 text-xs bg-slate-950 p-4 rounded-xl border border-slate-800 font-mono">
+        <div class="flex justify-between">
+          <span class="text-slate-400">Objetivo:</span>
+          <span class="text-white font-bold" id="modal-target">Quebrada Huaycoloro (QHuay2)</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-slate-400">Equipo Asignado:</span>
+          <span class="text-sky-400 font-bold">DJI Matrice 300 RTK + Zenmuse H20T</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-slate-400">Sensores Aéreos:</span>
+          <span class="text-slate-200">Cámara Térmica Radiométrica + Zoom 4K</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-slate-400">Ruta de Vuelo:</span>
+          <span class="text-slate-200">Base Huachipa &rarr; Punto Anómalo (3.4 km)</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-slate-400">Tiempo Estimado Llegada:</span>
+          <span class="text-amber-400 font-bold">04 min : 20 seg</span>
+        </div>
+      </div>
+
+      <div class="mt-4 pt-3 border-t border-slate-800 flex justify-end space-x-2">
+        <button onclick="closeDroneModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg transition">
+          Cancelar Misión
+        </button>
+        <button onclick="confirmMission()" class="px-4 py-2 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded-lg transition flex items-center gap-1.5 shadow-lg shadow-red-600/30">
+          <i data-lucide="check-circle-2" class="w-4 h-4"></i> Confirmar Despegue
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- JAVASCRIPT: STATIONS DATA, MAP & REAL-TIME EMULATION -->
+  <script>
+    // 1. DATASET OF THE 10 ANA MONITORING STATIONS
+    const stations = [
+      {
+        id: "RRima4",
+        name: "RRima4 · Chicla / San Mateo",
+        tramo: "Cuenca Alta (3,200 msnm)",
+        lat: -11.758, lng: -76.280,
+        ph: 8.35, od: 6.90, cond: 819, temp: 18.80, dqo: 2.25, metal: 0.0282,
+        status: "media", statusText: "ALERTA MEDIA",
+        motivo: "Presencia crónica de Arsénico (0.0282 mg/L > ECA 0.01)"
+      },
+      {
+        id: "RRima5",
+        name: "RRima5 · Surco / Matucana",
+        tramo: "Cuenca Alta (2,390 msnm)",
+        lat: -11.848, lng: -76.385,
+        ph: 7.60, od: 7.10, cond: 814, temp: 18.50, dqo: 2.25, metal: 0.0268,
+        status: "media", statusText: "ALERTA MEDIA",
+        motivo: "Arsénico 0.0268 mg/L excede ECA Cat 1-A2"
+      },
+      {
+        id: "RRima6",
+        name: "RRima6 · Tamboraque / Corcona",
+        tramo: "Cuenca Alta (Pasivos Mineros)",
+        lat: -11.890, lng: -76.455,
+        ph: 8.06, od: 10.12, cond: 802, temp: 19.80, dqo: 2.25, metal: 0.0247,
+        status: "media", statusText: "ALERTA MEDIA",
+        motivo: "Arsénico 0.0247 mg/L excede ECA Cat 1-A2"
+      },
+      {
+        id: "RRima21",
+        name: "RRima21 · Puente Los Ángeles / Chosica",
+        tramo: "Cuenca Media (Entrada a Chosica)",
+        lat: -11.932, lng: -76.680,
+        ph: 6.93, od: 6.98, cond: 872, temp: 17.73, dqo: 2.25, metal: 0.0253,
+        status: "media", statusText: "ALERTA MEDIA",
+        motivo: "Arsénico 0.0253 mg/L excede ECA Cat 1-A2"
+      },
+      {
+        id: "RRima8",
+        name: "RRima8 · Chosica / Ricardo Palma",
+        tramo: "Cuenca Media (Zona Urbana Chosica)",
+        lat: -11.940, lng: -76.705,
+        ph: 8.95, od: 14.86, cond: 519, temp: 19.66, dqo: 8.90, metal: 0.0165,
+        status: "media", statusText: "ALERTA MEDIA",
+        motivo: "pH en frontera superior (8.95) y Arsénico 0.0165 mg/L"
+      },
+      {
+        id: "RSeul1",
+        name: "RSeul1 · Río Santa Eulalia / Autisha",
+        tramo: "Afluente Cuenca Media",
+        lat: -11.885, lng: -76.630,
+        ph: 7.20, od: 8.99, cond: 581, temp: 18.50, dqo: 2.25, metal: 0.0111,
+        status: "normal", statusText: "ESTADO NORMAL",
+        motivo: "Calidad de agua saludable; dilución natural de cuenca"
+      },
+      {
+        id: "RRima14",
+        name: "RRima14 · Chaclacayo / Ñaña",
+        tramo: "Cuenca Media-Baja",
+        lat: -11.985, lng: -76.840,
+        ph: 8.94, od: 12.97, cond: 806, temp: 19.71, dqo: 2.25, metal: 0.0221,
+        status: "media", statusText: "ALERTA MEDIA",
+        motivo: "Arsénico 0.0221 mg/L excede límite de potabilización"
+      },
+      {
+        id: "QHuay2",
+        name: "QHuay2 · Quebrada Huaycoloro",
+        tramo: "Afluente Crítico (Huachipa / SJL)",
+        lat: -12.012, lng: -76.955,
+        ph: 10.36, od: 19.41, cond: 2064, temp: 32.30, dqo: 73.10, metal: 0.0063,
+        status: "critico", statusText: "ALERTA ALTA / CRÍTICO",
+        motivo: "Alcalinidad extrema (pH 10.36), DQO 73.1 mg/L y efluente térmico (32.3°C)"
+      },
+      {
+        id: "RRima19",
+        name: "RRima19 · Bocatoma La Atarjea",
+        tramo: "Cuenca Baja Urbana (El Agustino)",
+        lat: -12.042, lng: -77.005,
+        ph: 8.75, od: 11.54, cond: 558, temp: 22.80, dqo: 20.70, metal: 6.102,
+        status: "critico", statusText: "ALERTA ALTA / CRÍTICO",
+        motivo: "Hierro 6.10 mg/L excede 6 veces el ECA (1.0 mg/L); DQO en 20.7 mg/L"
+      },
+      {
+        id: "RRima20",
+        name: "RRima20 · Desembocadura Callao",
+        tramo: "Cuenca Baja / Zona Industrial",
+        lat: -12.025, lng: -77.135,
+        ph: 8.27, od: 0.10, cond: 3289, temp: 25.54, dqo: 605.20, metal: 0.0497,
+        status: "critico", statusText: "ALERTA ALTA / CRÍTICO",
+        motivo: "Anoxia severa (OD 0.1 mg/L), DBO5 157 mg/L y aceites 38.7 mg/L"
+      }
+    ];
+
+    let currentSelected = stations[7]; // Default to QHuay2 (Huaycoloro)
+    let mapMarkers = [];
+
+    // 2. INITIALIZE LEAFLET MAP
+    const map = L.map('map').setView([-11.96, -76.75], 10);
+
+    // Topo/Satellite base layer (CartoDB DarkMatter for futuristic look)
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; OpenStreetMap &copy; CARTO',
+      maxZoom: 18
+    }).addTo(map);
+
+    // River Rímac general path approximation
+    const riverCoords = [
+      [-11.758, -76.280], [-11.848, -76.385], [-11.890, -76.455],
+      [-11.932, -76.680], [-11.940, -76.705], [-11.985, -76.840],
+      [-12.012, -76.955], [-12.042, -77.005], [-12.025, -77.135]
+    ];
+    L.polyline(riverCoords, { color: '#0284c7', weight: 4, opacity: 0.7, dashArray: '4, 4' }).addTo(map);
+
+    // Function to render station markers
+    function renderMarkers(filter = 'all') {
+      // Clear previous
+      mapMarkers.forEach(m => map.removeLayer(m));
+      mapMarkers = [];
+
+      stations.forEach(st => {
+        if (filter !== 'all' && st.status !== filter) return;
+
+        let markerColor = st.status === 'critico' ? '#ef4444' : (st.status === 'media' ? '#f59e0b' : '#10b981');
+        let pulseClass = st.status === 'critico' ? 'pulse-alert' : '';
+
+        // Custom Leaflet DivIcon
+        const customIcon = L.divIcon({
+          className: 'custom-pin',
+          html: `<div class="${pulseClass} w-5 h-5 rounded-full flex items-center justify-center border-2 border-white shadow-lg" style="background-color: ${markerColor}">
+                   <div class="w-1.5 h-1.5 rounded-full bg-white"></div>
+                 </div>`,
+          iconSize: [20, 20],
+          iconAnchor: [10, 10]
+        });
+
+        const marker = L.marker([st.lat, st.lng], { icon: customIcon }).addTo(map);
+        marker.bindTooltip(`<strong>${st.name}</strong><br><span style="color:${markerColor}">● ${st.statusText}</span>`);
+        
+        marker.on('click', () => {
+          selectStation(st);
+        });
+
+        mapMarkers.push(marker);
+      });
+    }
+
+    // Filter button logic
+    function filterStations(type) {
+      document.querySelectorAll('#btn-all, #btn-critico, #btn-media, #btn-normal').forEach(b => {
+        b.classList.remove('bg-slate-800', 'text-white');
+        b.classList.add('text-slate-400');
+      });
+      document.getElementById('btn-' + type).classList.add('bg-slate-800', 'text-white');
+      renderMarkers(type);
+    }
+
+    // Select station & update Right Panel
+    function selectStation(st) {
+      currentSelected = st;
+      document.getElementById('card-nombre').innerText = st.name;
+      document.getElementById('card-tramo').innerText = st.tramo;
+      
+      const badge = document.getElementById('card-badge');
+      if (st.status === 'critico') {
+        badge.className = "px-2.5 py-1 rounded-full text-xs font-bold bg-red-500/20 text-red-400 border border-red-500/30 flex items-center gap-1";
+        badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span> ALERTA ALTA`;
+      } else if (st.status === 'media') {
+        badge.className = "px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center gap-1";
+        badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-500"></span> ALERTA MEDIA`;
+      } else {
+        badge.className = "px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1";
+        badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500"></span> NORMAL`;
+      }
+
+      document.getElementById('val-ph').innerText = st.ph.toFixed(2);
+      document.getElementById('val-od').innerHTML = `${st.od.toFixed(2)} <span class="text-xs font-normal">mg/L</span>`;
+      document.getElementById('val-cond').innerHTML = `${Math.round(st.cond)} <span class="text-xs font-normal">µS/cm</span>`;
+      document.getElementById('val-temp').innerHTML = `${st.temp.toFixed(2)} <span class="text-xs font-normal">°C</span>`;
+      document.getElementById('val-dqo').innerHTML = `${st.dqo.toFixed(1)} <span class="text-xs font-normal">mg/L</span>`;
+      document.getElementById('val-metal').innerHTML = `${st.metal.toFixed(4)} <span class="text-xs font-normal">mg/L</span>`;
+    }
+
+    renderMarkers('all');
+
+    // 3. REALTIME TIMELINE CHART (CHART.JS)
+    const ctx = document.getElementById('realtimeChart').getContext('2d');
+    const timeLabels = ['17:20:00', '17:20:05', '17:20:10', '17:20:15', '17:20:20', '17:20:25', '17:20:30'];
+    const dataOD = [18.8, 19.1, 19.4, 19.2, 19.5, 19.3, 19.41];
+    const dataCond = [2040, 2055, 2060, 2050, 2070, 2062, 2064];
+
+    const realtimeChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: timeLabels,
+        datasets: [
+          {
+            label: 'Oxígeno Disuelto (mg/L)',
+            data: dataOD,
+            borderColor: '#38bdf8',
+            backgroundColor: 'rgba(56, 189, 248, 0.1)',
+            yAxisID: 'yOD',
+            tension: 0.3,
+            fill: true,
+            borderWidth: 2
+          },
+          {
+            label: 'Conductividad (µS/cm)',
+            data: dataCond,
+            borderColor: '#fbbf24',
+            borderDash: [4, 4],
+            yAxisID: 'yCond',
+            tension: 0.3,
+            borderWidth: 2
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { labels: { color: '#94a3b8', font: { size: 10 } } }
+        },
+        scales: {
+          x: { ticks: { color: '#64748b', font: { size: 9 } }, grid: { color: '#1e293b' } },
+          yOD: {
+            type: 'linear', position: 'left',
+            min: 0, max: 25,
+            ticks: { color: '#38bdf8', font: { size: 9 } },
+            grid: { color: '#1e293b' }
+          },
+          yCond: {
+            type: 'linear', position: 'right',
+            min: 0, max: 3500,
+            ticks: { color: '#fbbf24', font: { size: 9 } },
+            grid: { drawOnChartArea: false }
+          }
+        }
+      }
+    });
+
+    // 4. CONTINUOUS TELEMETRY TICK EMULATOR (EVERY 4 SECONDS)
+    setInterval(() => {
+      const now = new Date();
+      const timeStr = now.toTimeString().split(' ')[0];
+
+      // Add small gaussian variation around current station baseline
+      const jitterOD = (Math.random() - 0.49) * 0.2;
+      const jitterCond = (Math.random() - 0.49) * 15;
+
+      const newOD = Math.max(0.1, Number((currentSelected.od + jitterOD).toFixed(2)));
+      const newCond = Math.round(currentSelected.cond + jitterCond);
+
+      // Update Chart
+      realtimeChart.data.labels.shift();
+      realtimeChart.data.labels.push(timeStr);
+      realtimeChart.data.datasets[0].data.shift();
+      realtimeChart.data.datasets[0].data.push(newOD);
+      realtimeChart.data.datasets[1].data.shift();
+      realtimeChart.data.datasets[1].data.push(newCond);
+      realtimeChart.update('none');
+
+      // Update Card
+      document.getElementById('val-od').innerHTML = `${newOD} <span class="text-xs font-normal">mg/L</span>`;
+      document.getElementById('val-cond').innerHTML = `${newCond} <span class="text-xs font-normal">µS/cm</span>`;
+
+      // Update Confidence Bar subtly
+      const conf = (98.8 + Math.random() * 1.1).toFixed(1);
+      document.getElementById('infer-confidence').innerText = `${conf}%`;
+      document.getElementById('confidence-bar').style.width = `${conf}%`;
+    }, 4000);
+
+    // 5. DRONE MODAL LOGIC
+    function triggerDroneProtocol() {
+      document.getElementById('modal-target').innerText = currentSelected.name;
+      document.getElementById('droneModal').classList.remove('hidden');
+    }
+    function closeDroneModal() {
+      document.getElementById('droneModal').classList.add('hidden');
+    }
+    function confirmMission() {
+      alert(`🛰️ MISIÓN CONFIRMADA:
+Dron DJI Matrice 300 RTK despachado hacia ${currentSelected.name}.
+Transmisión de video térmico en vivo encriptada activada.`);
+      closeDroneModal();
+    }
+    function triggerInacalProtocol() {
+      alert(`📋 PROTOCOLO INACAL ACTIVADO:
+Generando solicitud de cadena de custodia para laboratorio acreditado en el punto ${currentSelected.name}. Notificación formal enviada a fiscalización ambiental.`);
+    }
+
+    // Initialize icons
+    lucide.createIcons();
+  </script>
+</body>
+</html>
