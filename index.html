@@ -408,8 +408,8 @@
     // 2. INITIALIZE LEAFLET MAP
     const map = L.map('map').setView([-11.96, -76.75], 10);
 
-    // Topo/Satellite base layer (CartoDB DarkMatter for futuristic look)
-    var mapaOscuro = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+   // 1. Definir las dos capas
+var mapaOscuro = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
     attribution: 'Tiles &copy; Esri &mdash; Dark Canvas',
     maxZoom: 16
 });
@@ -426,7 +426,13 @@ mapaOscuro.addTo(map);
 L.control.layers({
     "Modo Oscuro": mapaOscuro,
     "Satelital ANA": mapaSatelital
-    }).addTo(map);
+}).addTo(map);
+Guardar cambios en GitHub:
+Baja hasta el final de la página y haz clic en el botón verde "Commit changes...".
+
+Confirma haciendo clic en "Commit changes".
+
+En 1 o 2 minutos, GitHub Pages volverá a compilar y al recargar tu página ([https://juliusss93.github.io/sistema-alpha/](https://juliusss93.github.io/sistema-alpha/) o el dominio que tengas en el CNAME) el mapa cargará de inmediato sin la marca de agua.
 
     // River Rímac general path approximation
     const riverCoords = [
