@@ -409,9 +409,23 @@
     const map = L.map('map').setView([-11.96, -76.75], 10);
 
     // Topo/Satellite base layer (CartoDB DarkMatter for futuristic look)
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; OpenStreetMap &copy; CARTO',
-      maxZoom: 18
+    var mapaOscuro = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+    attribution: 'Tiles &copy; Esri &mdash; Dark Canvas',
+    maxZoom: 16
+});
+
+var mapaSatelital = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    attribution: 'Tiles &copy; Esri &mdash; Satelital',
+    maxZoom: 18
+});
+
+// 2. Agregar la capa inicial al mapa (por defecto oscuro)
+mapaOscuro.addTo(map);
+
+// 3. Agregar el selector de capas en la esquina
+L.control.layers({
+    "Modo Oscuro": mapaOscuro,
+    "Satelital ANA": mapaSatelital
     }).addTo(map);
 
     // River Rímac general path approximation
